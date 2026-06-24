@@ -1,0 +1,15 @@
+{
+	"key.categories.bucketlist": "Bucketlist",
+	"key.bucketlist.open": "Open Bucketlist",
+
+	"bucketlist.screen.title": "Bucketlist",
+	"bucketlist.progress.global": "%s / %s variants",
+	"bucketlist.progress.named": "%s / %s named",
+
+	"bucketlist.toast.new_variant": "New variant collected!",
+	"bucketlist.toast.bulk": "+%s new variants",
+	"bucketlist.toast.row_complete": "Row complete: %s",
+	"bucketlist.toast.type_complete": "Type complete: %s",
+	"bucketlist.toast.named": "Named variety: %s",
+	"bucketlist.toast.challenge": "All variants collected!"
+}

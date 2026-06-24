@@ -1,0 +1,16 @@
+{
+  "parent": "bucketlist:flopper/root",
+  "display": {
+    "icon": { "id": "minecraft:tropical_fish_bucket" },
+    "title": "Blue body",
+    "description": "Blue-bodied floppers.",
+    "frame": "goal",
+    "show_toast": false,
+    "announce_to_chat": false,
+    "hidden": false
+  },
+  "criteria": {
+    "derived": { "trigger": "minecraft:impossible" }
+  },
+  "gu:icon": { "type": "tropical_fish", "variant": 720897 }
+}

@@ -1,0 +1,16 @@
+{
+  "display": {
+    "icon": { "id": "minecraft:tropical_fish_bucket" },
+    "title": "Tropical Fish",
+    "description": "Collect every tropical fish variant.",
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": false,
+    "background": "minecraft:textures/gui/advancements/backgrounds/stone.png"
+  },
+  "criteria": {
+    "derived": { "trigger": "minecraft:impossible" }
+  },
+  "gu:icon": { "type": "tropical_fish", "variant": 0 }
+}

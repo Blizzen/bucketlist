@@ -1,0 +1,28 @@
+{
+	"schemaVersion": 1,
+	"id": "bucketlist",
+	"version": "${version}",
+	"name": "Bucketlist",
+	"description": "A client-side advancement engine for Minecraft. Tracks your collection of all 3,072 tropical fish variants on any server — no server-side datapack required. Drop in your own advancement packs (built in any advancement editor) to track them client-side too.",
+	"authors": [
+		"Blizzen"
+	],
+	"contact": {
+		"homepage": "https://github.com/Blizzen/bucketlist",
+		"sources": "https://github.com/Blizzen/bucketlist",
+		"issues": "https://github.com/Blizzen/bucketlist/issues"
+	},
+	"license": "GPL-3.0-or-later",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"online.blizzen.bucketlist.BucketlistClient"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.16",
+		"minecraft": "~1.21.4",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
