@@ -3,26 +3,45 @@ package online.blizzen.bucketlist;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ServerInfo;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import online.blizzen.bucketlist.detect.CollectionScanner;
+import online.blizzen.bucketlist.detect.ScanResult;
+import online.blizzen.bucketlist.store.CollectionStore;
 import online.blizzen.bucketlist.ui.BucketlistScreen;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * Client entrypoint. Bucketlist is a client-side advancement engine: it loads
- * advancement packs (standard datapack layout), evaluates their criteria against
- * local client state, persists progress per-server, and renders an advancement-style
- * screen with its own toasts — all without any server-side datapack.
+ * Client entrypoint. Bucketlist is a client-side advancement engine: it watches what you
+ * collect locally, persists progress per-server, and renders an advancement-style screen
+ * with its own toasts — all without any server-side datapack.
  *
- * <p>v0.1 wiring (see docs/DESIGN.md) is stubbed below; this scaffold registers the
- * open keybind and the tick hook only.
+ * <p>This v0.1 slice wires detection + per-server persistence + a live-count screen. The
+ * full data-driven tree render and tiered toasts are the next slice (see docs/DESIGN.md).
  */
 public class BucketlistClient implements ClientModInitializer {
-	private static KeyBinding openKey;
+
+	private static final int SCAN_INTERVAL_TICKS = 20; // ~1s
+
+	private static CollectionStore store;
+	private final CollectionScanner scanner = new CollectionScanner();
+	private KeyBinding openKey;
+	private int tickCounter;
+
+	/** The active per-server collection store (may be closed when not in a world). */
+	public static CollectionStore store() {
+		return store;
+	}
 
 	@Override
 	public void onInitializeClient() {
 		Bucketlist.LOGGER.info("Bucketlist starting (client-side advancement engine)");
+
+		store = new CollectionStore(FabricLoader.getInstance().getConfigDir());
 
 		openKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
 				"key.bucketlist.open",
@@ -31,19 +50,52 @@ public class BucketlistClient implements ClientModInitializer {
 				"key.categories.bucketlist"
 		));
 
-		// TODO(v0.1): bootstrap the engine here:
-		//   - PackLoader.loadBundledFishPack() (+ later, drop-in packs)
-		//   - CollectionStore for the active server
-		//   - register CriterionEvaluator(s): InventoryChangedEvaluator first
-		//   - construct the CollectionScanner and ToastQueue
+		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> store.open(serverKey(client)));
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> store.close());
 
-		ClientTickEvents.END_CLIENT_TICK.register(client -> {
-			while (openKey.wasPressed()) {
-				client.setScreen(new BucketlistScreen());
+		ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
+	}
+
+	private void onClientTick(MinecraftClient client) {
+		while (openKey.wasPressed()) {
+			client.setScreen(new BucketlistScreen());
+		}
+
+		if (client.world == null || client.player == null || !store.isOpen()) {
+			return;
+		}
+		if (++tickCounter % SCAN_INTERVAL_TICKS != 0) {
+			return;
+		}
+
+		ScanResult scan = scanner.scan(client);
+		long now = System.currentTimeMillis();
+		int added = 0;
+		for (int variant : scan.variants()) {
+			if (store.markCollected(variant, now)) {
+				added++;
 			}
-			// TODO(v0.1): run the CollectionScanner (deep-scan: player inventory +
-			// held shulkers' container component + any open container screen), feed new
-			// variants to the CollectionStore + ToastQueue.
-		});
+		}
+		if (added > 0) {
+			store.saveIfDirty();
+			// TODO(next slice): feed the ToastQueue for tiered/coalesced toasts.
+			Bucketlist.LOGGER.info("Bucketlist: +{} new variant(s) ({} total this server)", added, store.count());
+		}
+	}
+
+	/** Multiplayer: server address. Singleplayer: world name. */
+	private static String serverKey(MinecraftClient client) {
+		ServerInfo info = client.getCurrentServerEntry();
+		if (info != null && info.address != null && !info.address.isEmpty()) {
+			return info.address;
+		}
+		if (client.getServer() != null) {
+			try {
+				return "singleplayer/" + client.getServer().getSaveProperties().getLevelName();
+			} catch (Exception ignored) {
+				// fall through
+			}
+		}
+		return "unknown";
 	}
 }

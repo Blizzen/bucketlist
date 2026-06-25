@@ -108,14 +108,22 @@ Each tab = a root advancement (vanilla behaviour). Leaves carry the real
 - **No required files.** The mod writes its own settings + per-server save data with
   defaults; the only user-authored files are *optional* drop-in packs (v0.2).
 
-## 6. Open verifications (do before relying on them)
+## 6. Verifications — CLOSED against decompiled 1.21.4 source
 
-- **Variant packing** (`TropicalFishVariant.pack` / generator `pack`): uses the historical
-  `size | pattern<<8 | base<<16 | patternColor<<24`. Confirm against a real 1.21.4
-  *Bucket of Tropical Fish* `bucket_entity_data.BucketVariantTag` before wiring the full
-  pack into the build.
-- **Type-name ordering** (kob…clayfish): confirm the (size, pattern) → name mapping.
-- **The 22 named varieties**: confirm the exact (size, pattern, base, patternColor) set
-  used for the named sub-goal.
-- **Advancement `display.icon` / `background` schema** for 1.21.4 (only matters for editor
-  round-tripping; the engine renders its own visuals).
+All three were confirmed by reading `net.minecraft.entity.passive.TropicalFishEntity`
+(yarn 1.21.4+build.8, via `gradlew genSources`):
+
+- **Variant packing** ✅ — `getVariantId` is
+  `variety.getId() & 65535 | baseColor.getId()<<16 | patternColor.getId()<<24`, and
+  `Variety.id = size.id | pattern<<8`. That is exactly
+  `size | pattern<<8 | base<<16 | patternColor<<24` — matches `TropicalFishVariant.pack`
+  and the generator. The bucket stores it in `BUCKET_ENTITY_DATA` under
+  `"BucketVariantTag"` (`copyDataToStack`, `BUCKET_VARIANT_TAG_KEY`).
+- **Type ordering** ✅ — `Variety` enum is KOB,SUNSTREAK,SNOOPER,DASHER,BRINELY,SPOTTY
+  (SMALL 0–5), then FLOPPER,STRIPEY,GLITTER,BLOCKFISH,BETTY,CLAYFISH (LARGE 0–5) — exactly
+  the `TYPES[]` order with `typeIndex = size*6 + pattern`.
+- **The 22 named varieties** ✅ — `COMMON_VARIANTS` gives the exact set; baked into
+  `online.blizzen.bucketlist.variant.NamedVarieties`.
+
+Remaining (only matters for editor round-tripping; the engine renders its own visuals):
+advancement `display.icon` / `background` schema for 1.21.4.

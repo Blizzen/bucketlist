@@ -3,14 +3,20 @@ package online.blizzen.bucketlist.ui;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
+import online.blizzen.bucketlist.store.CollectionStore;
+import online.blizzen.bucketlist.variant.NamedVarieties;
+import online.blizzen.bucketlist.variant.TropicalFishVariant;
+import online.blizzen.bucketlist.BucketlistClient;
+
+import java.util.Set;
 
 /**
- * Custom advancement-style screen: dirt background, framed nodes (task/goal/challenge),
- * connecting lines, and procedurally tinted live tropical-fish icons. One tab per pack
- * root (a Global overview tab + one tab per fish type), mirroring the vanilla advancement
- * screen but driven entirely by client-side data.
+ * Collection screen. The full version clones the vanilla advancement screen (dirt bg,
+ * task/goal/challenge frames, connecting lines, procedural live-fish icons, one tab per
+ * pack root). This interim version shows the live per-server progress counts so the
+ * detection + persistence slice is testable; the tree render is the next slice.
  *
- * <p>Reminder for v0.1 rendering: any entity/overlay drawn on top of GUI content needs the
+ * <p>Reminder for the tree render: entity/overlay draws on top of GUI content need the
  * {@code context.draw()} + {@code entityVertexConsumers.draw()} flush BEFORE and AFTER —
  * z-test alone is unreliable across the 1.21.4 GUI render layers.
  */
@@ -24,12 +30,30 @@ public class BucketlistScreen extends Screen {
 	public void render(DrawContext context, int mouseX, int mouseY, float delta) {
 		super.render(context, mouseX, mouseY, delta);
 
-		// TODO(v0.1): tab strip, dirt background, tree walk with connecting lines, framed
-		// nodes, procedural live-fish icons, and the X / 3072 + X / 22 progress header.
-		context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 20, 0xFFFFFF);
+		CollectionStore store = BucketlistClient.store();
+		int collected = 0;
+		int named = 0;
+		if (store != null && store.isOpen()) {
+			Set<Integer> variants = store.collectedVariants();
+			collected = variants.size();
+			for (int v : variants) {
+				if (NamedVarieties.isNamed(v)) {
+					named++;
+				}
+			}
+		}
+
+		int cx = this.width / 2;
+		context.drawCenteredTextWithShadow(this.textRenderer, this.title, cx, 24, 0xFFFFFF);
 		context.drawCenteredTextWithShadow(this.textRenderer,
-				Text.literal("Scaffold — engine wiring lands in v0.1"),
-				this.width / 2, 40, 0xA0A0A0);
+				Text.translatable("bucketlist.progress.global", collected, TropicalFishVariant.TOTAL),
+				cx, 48, 0x55FFFF);
+		context.drawCenteredTextWithShadow(this.textRenderer,
+				Text.translatable("bucketlist.progress.named", named, NamedVarieties.total()),
+				cx, 62, 0xFFD55F);
+		context.drawCenteredTextWithShadow(this.textRenderer,
+				Text.literal("Tree view with fish icons lands next slice"),
+				cx, 90, 0x808080);
 	}
 
 	@Override
