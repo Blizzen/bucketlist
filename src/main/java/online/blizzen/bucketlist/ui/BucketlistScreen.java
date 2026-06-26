@@ -34,7 +34,7 @@ public class BucketlistScreen extends Screen {
 	private static final int CELL = 12;
 	private static final int GRID = TropicalFishVariant.COLORS * CELL; // 192
 
-	private int selectedType;
+	private int selectedType = -1; // -1 == Overview
 	private int hoveredVariant = -1;
 	private boolean missingOnly;
 
@@ -52,6 +52,16 @@ public class BucketlistScreen extends Screen {
 	private static final int TAB_W = 56;
 	private static final int TAB_H = 18;
 	private static final int TYPE_MAX = TropicalFishVariant.COLORS * TropicalFishVariant.COLORS; // 256
+
+	// Overview ("Global") view: selectedType < 0 means overview.
+	private final int[] ovCellX = new int[TropicalFishVariant.TYPES];
+	private final int[] ovCellY = new int[TropicalFishVariant.TYPES];
+	private static final int OV_CELL_W = 86;
+	private static final int OV_CELL_H = 66;
+	private static final int OV_BTN_W = 78;
+	private static final int OV_BTN_H = 14;
+	private int overviewBtnX;
+	private int overviewBtnY;
 
 	public BucketlistScreen() {
 		super(Text.translatable("bucketlist.screen.title"));
@@ -88,6 +98,15 @@ public class BucketlistScreen extends Screen {
 		context.drawCenteredTextWithShadow(this.textRenderer,
 				Text.literal("Show: " + (missingOnly ? "Missing" : "All")), toggleX + TOGGLE_W / 2, toggleY + 3, 0xFFFFFF);
 
+		// "Overview" button (top-left); selectedType < 0 == overview.
+		overviewBtnX = 6;
+		overviewBtnY = 6;
+		boolean ovSel = selectedType < 0;
+		boolean ovHover = mouseX >= overviewBtnX && mouseX < overviewBtnX + OV_BTN_W && mouseY >= overviewBtnY && mouseY < overviewBtnY + OV_BTN_H;
+		context.fill(overviewBtnX, overviewBtnY, overviewBtnX + OV_BTN_W, overviewBtnY + OV_BTN_H, ovSel ? 0xFF4A4A4A : (ovHover ? 0xFF333333 : 0xFF222222));
+		context.drawBorder(overviewBtnX, overviewBtnY, OV_BTN_W, OV_BTN_H, ovSel ? 0xFFFFFFFF : 0xFF000000);
+		context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Overview"), overviewBtnX + OV_BTN_W / 2, overviewBtnY + 3, 0xFFFFFF);
+
 		int[] perType = new int[TropicalFishVariant.TYPES];
 		for (int v : collected) {
 			int t = TropicalFishVariant.unpack(v).typeIndex();
@@ -96,6 +115,11 @@ public class BucketlistScreen extends Screen {
 			}
 		}
 		drawTabs(context, mouseX, mouseY, perType);
+
+		if (selectedType < 0) {
+			drawOverview(context, mouseX, mouseY, perType);
+			return;
+		}
 
 		int gridX = cx - 150;
 		int gridY = 96;
@@ -106,6 +130,49 @@ public class BucketlistScreen extends Screen {
 		hoveredVariant = -1;
 		drawGrid(context, mouseX, mouseY, collected, gridX, gridY);
 		drawPreview(context, collected, gridX, gridY);
+	}
+
+	private void drawOverview(DrawContext context, int mouseX, int mouseY, int[] perType) {
+		int cols = 4;
+		int gap = 6;
+		int totalW = cols * OV_CELL_W + (cols - 1) * gap;
+		int startX = this.width / 2 - totalW / 2;
+		int startY = 98;
+
+		for (int i = 0; i < TropicalFishVariant.TYPES; i++) {
+			int col = i % cols;
+			int row = i / cols;
+			int x = startX + col * (OV_CELL_W + gap);
+			int y = startY + row * (OV_CELL_H + gap);
+			ovCellX[i] = x;
+			ovCellY[i] = y;
+
+			boolean hover = mouseX >= x && mouseX < x + OV_CELL_W && mouseY >= y && mouseY < y + OV_CELL_H;
+			boolean complete = perType[i] >= TYPE_MAX;
+			context.fill(x, y, x + OV_CELL_W, y + OV_CELL_H, hover ? 0xFF2A2A2A : 0xFF1A1A1A);
+			context.drawBorder(x, y, OV_CELL_W, OV_CELL_H, complete ? 0xFF55FF55 : (hover ? 0xFFFFFFFF : 0xFF000000));
+
+			// Representative fish (red body / white pattern) shows the type's shape+pattern.
+			int size = i / TropicalFishVariant.PATTERNS;
+			int pattern = i % TropicalFishVariant.PATTERNS;
+			ensurePreviewFish(new TropicalFishVariant(size, pattern, 14, 0).pack());
+			if (previewFish != null) {
+				InventoryScreen.drawEntity(context, x + 4, y + 4, x + 44, y + OV_CELL_H - 4, 30, 0.0F, x + 24, y + OV_CELL_H / 2.0F, previewFish);
+			}
+
+			context.drawTextWithShadow(this.textRenderer, Text.literal(TropicalFishVariant.TYPE_NAMES[i]),
+					x + 48, y + 8, complete ? 0x55FF55 : 0xFFFFFF);
+			context.drawTextWithShadow(this.textRenderer, Text.literal(perType[i] + " / " + TYPE_MAX), x + 48, y + 20, 0xC0C0C0);
+
+			int barX = x + 48;
+			int barY = y + OV_CELL_H - 12;
+			int barW = OV_CELL_W - 52;
+			context.fill(barX, barY, barX + barW, barY + 4, 0xFF101010);
+			int fill = Math.round(barW * (perType[i] / (float) TYPE_MAX));
+			if (fill > 0) {
+				context.fill(barX, barY, barX + fill, barY + 4, complete ? 0xFF55FF55 : 0xFF55AAFF);
+			}
+		}
 	}
 
 	private void drawTabs(DrawContext context, int mouseX, int mouseY, int[] perType) {
@@ -222,6 +289,18 @@ public class BucketlistScreen extends Screen {
 		if (mouseX >= toggleX && mouseX < toggleX + TOGGLE_W && mouseY >= toggleY && mouseY < toggleY + TOGGLE_H) {
 			missingOnly = !missingOnly;
 			return true;
+		}
+		if (mouseX >= overviewBtnX && mouseX < overviewBtnX + OV_BTN_W && mouseY >= overviewBtnY && mouseY < overviewBtnY + OV_BTN_H) {
+			selectedType = -1;
+			return true;
+		}
+		if (selectedType < 0) {
+			for (int i = 0; i < TropicalFishVariant.TYPES; i++) {
+				if (mouseX >= ovCellX[i] && mouseX < ovCellX[i] + OV_CELL_W && mouseY >= ovCellY[i] && mouseY < ovCellY[i] + OV_CELL_H) {
+					selectedType = i;
+					return true;
+				}
+			}
 		}
 		for (int i = 0; i < TropicalFishVariant.TYPES; i++) {
 			if (mouseX >= tabX[i] && mouseX < tabX[i] + TAB_W && mouseY >= tabY[i] && mouseY < tabY[i] + TAB_H) {
