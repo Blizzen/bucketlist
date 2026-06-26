@@ -44,7 +44,8 @@ public class BucketlistScreen extends Screen {
 	private final int[] tabX = new int[TropicalFishVariant.TYPES];
 	private final int[] tabY = new int[TropicalFishVariant.TYPES];
 	private static final int TAB_W = 56;
-	private static final int TAB_H = 14;
+	private static final int TAB_H = 18;
+	private static final int TYPE_MAX = TropicalFishVariant.COLORS * TropicalFishVariant.COLORS; // 256
 
 	public BucketlistScreen() {
 		super(Text.translatable("bucketlist.screen.title"));
@@ -72,16 +73,27 @@ public class BucketlistScreen extends Screen {
 		context.drawCenteredTextWithShadow(this.textRenderer,
 				Text.translatable("bucketlist.progress.named", named, FishCatalog.namedTotal()), cx, 31, 0xFFD55F);
 
-		drawTabs(context, mouseX, mouseY);
+		int[] perType = new int[TropicalFishVariant.TYPES];
+		for (int v : collected) {
+			int t = TropicalFishVariant.unpack(v).typeIndex();
+			if (t >= 0 && t < perType.length) {
+				perType[t]++;
+			}
+		}
+		drawTabs(context, mouseX, mouseY, perType);
+
+		int gridX = cx - 150;
+		int gridY = 96;
+		context.drawCenteredTextWithShadow(this.textRenderer,
+				Text.literal(TropicalFishVariant.TYPE_NAMES[selectedType] + " — " + perType[selectedType] + " / " + TYPE_MAX),
+				cx, gridY - 12, 0xFFFFFF);
 
 		hoveredVariant = -1;
-		int gridX = cx - 150;
-		int gridY = 80;
 		drawGrid(context, mouseX, mouseY, collected, gridX, gridY);
 		drawPreview(context, collected, gridX, gridY);
 	}
 
-	private void drawTabs(DrawContext context, int mouseX, int mouseY) {
+	private void drawTabs(DrawContext context, int mouseX, int mouseY, int[] perType) {
 		int perRow = 6;
 		int rowW = perRow * (TAB_W + 2) - 2;
 		int startX = this.width / 2 - rowW / 2;
@@ -95,11 +107,22 @@ public class BucketlistScreen extends Screen {
 
 			boolean sel = i == selectedType;
 			boolean hover = mouseX >= x && mouseX < x + TAB_W && mouseY >= y && mouseY < y + TAB_H;
+			boolean complete = perType[i] >= TYPE_MAX;
 			int bg = sel ? 0xFF4A4A4A : (hover ? 0xFF333333 : 0xFF222222);
 			context.fill(x, y, x + TAB_W, y + TAB_H, bg);
 			context.drawBorder(x, y, TAB_W, TAB_H, sel ? 0xFFFFFFFF : 0xFF000000);
 			context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(TropicalFishVariant.TYPE_NAMES[i]),
-					x + TAB_W / 2, y + 3, sel ? 0xFFFFFF : 0xC0C0C0);
+					x + TAB_W / 2, y + 3, sel ? 0xFFFFFF : (complete ? 0x55FF55 : 0xC0C0C0));
+
+			// Per-type progress bar.
+			int barX = x + 3;
+			int barY = y + TAB_H - 5;
+			int barW = TAB_W - 6;
+			context.fill(barX, barY, barX + barW, barY + 3, 0xFF101010);
+			int fill = Math.round(barW * (perType[i] / (float) TYPE_MAX));
+			if (fill > 0) {
+				context.fill(barX, barY, barX + fill, barY + 3, complete ? 0xFF55FF55 : 0xFF55AAFF);
+			}
 		}
 	}
 
