@@ -8,6 +8,8 @@ import net.minecraft.entity.passive.TropicalFishEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.text.Text;
 import online.blizzen.bucketlist.BucketlistClient;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import online.blizzen.bucketlist.fish.FishCatalog;
 import online.blizzen.bucketlist.store.CollectionStore;
 import online.blizzen.bucketlist.variant.NamedVarieties;
@@ -41,6 +43,7 @@ public class BucketlistScreen extends Screen {
 
 	private static final int TOGGLE_W = 92;
 	private static final int TOGGLE_H = 14;
+	private static final float SIDE_YAW = 90.0F; // broadside facing for the Side view
 	private int toggleX;
 	private int toggleY;
 	private int sideToggleX;
@@ -185,9 +188,11 @@ public class BucketlistScreen extends Screen {
 				int fy1 = y + 27;
 				int fx2 = x + OV_CELL_W - 8;
 				int fy2 = y + OV_CELL_H - 9;
-				float fmx = sideView ? (fx1 + fx2) / 2.0F : mouseX;
-				float fmy = sideView ? (fy1 + fy2) / 2.0F : mouseY;
-				InventoryScreen.drawEntity(context, fx1, fy1, fx2, fy2, 70, 0.0F, fmx, fmy, previewFish);
+				if (sideView) {
+					renderFishSide(context, fx1, fy1, fx2, fy2, 70, previewFish);
+				} else {
+					InventoryScreen.drawEntity(context, fx1, fy1, fx2, fy2, 70, 0.0F, mouseX, mouseY, previewFish);
+				}
 			}
 
 			int barX = x + 6;
@@ -283,9 +288,11 @@ public class BucketlistScreen extends Screen {
 			int fy1 = boxY + 6;
 			int fx2 = boxX + boxW - 6;
 			int fy2 = boxY + boxH - 22;
-			float fmx = sideView ? (fx1 + fx2) / 2.0F : mouseX;
-			float fmy = sideView ? (fy1 + fy2) / 2.0F : mouseY;
-			InventoryScreen.drawEntity(context, fx1, fy1, fx2, fy2, 80, 0.0F, fmx, fmy, previewFish);
+			if (sideView) {
+				renderFishSide(context, fx1, fy1, fx2, fy2, 80, previewFish);
+			} else {
+				InventoryScreen.drawEntity(context, fx1, fy1, fx2, fy2, 80, 0.0F, mouseX, mouseY, previewFish);
+			}
 		}
 
 		// Hovered/selected variant label + status, centered under the grid.
@@ -321,6 +328,24 @@ public class BucketlistScreen extends Screen {
 		}
 		// Drive the swim animation from world time (the entity isn't ticked in the GUI).
 		previewFish.age = (int) this.client.world.getTime();
+	}
+
+	/** Renders the fish at a fixed broadside yaw (no mouse tracking) via the low-level
+	 *  entity-render path, so its full shape is exposed. Swim animation still runs (age). */
+	private void renderFishSide(DrawContext context, int x1, int y1, int x2, int y2, float size, TropicalFishEntity fish) {
+		float gx = (x1 + x2) / 2.0F;
+		float gy = (y1 + y2) / 2.0F;
+		fish.bodyYaw = SIDE_YAW;
+		fish.setYaw(SIDE_YAW);
+		fish.setPitch(0.0F);
+		fish.headYaw = SIDE_YAW;
+		fish.prevHeadYaw = SIDE_YAW;
+		float scale = fish.getScale();
+		Quaternionf rotation = new Quaternionf().rotateZ((float) Math.PI);
+		Vector3f translation = new Vector3f(0.0F, fish.getHeight() / 2.0F, 0.0F);
+		context.enableScissor(x1, y1, x2, y2);
+		InventoryScreen.drawEntity(context, gx, gy, size / scale, translation, rotation, null, fish);
+		context.disableScissor();
 	}
 
 	@Override
