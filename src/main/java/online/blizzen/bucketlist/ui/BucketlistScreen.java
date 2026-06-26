@@ -2,25 +2,49 @@ package online.blizzen.bucketlist.ui;
 
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.screen.ingame.InventoryScreen;
+import net.minecraft.entity.EntityType;
+import net.minecraft.entity.passive.TropicalFishEntity;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.text.Text;
+import online.blizzen.bucketlist.BucketlistClient;
+import online.blizzen.bucketlist.fish.FishCatalog;
 import online.blizzen.bucketlist.store.CollectionStore;
 import online.blizzen.bucketlist.variant.NamedVarieties;
 import online.blizzen.bucketlist.variant.TropicalFishVariant;
-import online.blizzen.bucketlist.BucketlistClient;
 
 import java.util.Set;
 
 /**
- * Collection screen. The full version clones the vanilla advancement screen (dirt bg,
- * task/goal/challenge frames, connecting lines, procedural live-fish icons, one tab per
- * pack root). This interim version shows the live per-server progress counts so the
- * detection + persistence slice is testable; the tree render is the next slice.
+ * Collection screen: a Pokédex-style grid per fish type plus a live procedural fish preview.
  *
- * <p>Reminder for the tree render: entity/overlay draws on top of GUI content need the
- * {@code context.draw()} + {@code entityVertexConsumers.draw()} flush BEFORE and AFTER —
- * z-test alone is unreliable across the 1.21.4 GUI render layers.
+ * <p>Tabs select one of the 12 types; the grid is that type's 16x16 base/pattern-color
+ * matrix (collected = full color, uncollected = dimmed). Hovering a cell renders the actual
+ * tropical fish for that variant via {@link InventoryScreen#drawEntity} (which brackets its
+ * own {@code context.draw()} flushes — the overlay-flush requirement is handled by vanilla).
  */
 public class BucketlistScreen extends Screen {
+
+	// ARGB swatches for the 16 dye colors (white=0 .. black=15).
+	private static final int[] DYE_RGB = {
+			0xFFF9FFFE, 0xFFF9801D, 0xFFC74EBD, 0xFF3AB3DA, 0xFFFED83D, 0xFF80C71F, 0xFFF38BAA, 0xFF474F52,
+			0xFF9D9D97, 0xFF169C9C, 0xFF8932B8, 0xFF3C44AA, 0xFF835432, 0xFF5E7C16, 0xFFB02E26, 0xFF1D1D21
+	};
+
+	private static final int CELL = 12;
+	private static final int GRID = TropicalFishVariant.COLORS * CELL; // 192
+
+	private int selectedType;
+	private int hoveredVariant = -1;
+
+	// Reused preview entity; re-variant it only when the shown variant changes.
+	private TropicalFishEntity previewFish;
+	private int previewVariant = Integer.MIN_VALUE;
+
+	private final int[] tabX = new int[TropicalFishVariant.TYPES];
+	private final int[] tabY = new int[TropicalFishVariant.TYPES];
+	private static final int TAB_W = 56;
+	private static final int TAB_H = 14;
 
 	public BucketlistScreen() {
 		super(Text.translatable("bucketlist.screen.title"));
@@ -31,29 +55,134 @@ public class BucketlistScreen extends Screen {
 		super.render(context, mouseX, mouseY, delta);
 
 		CollectionStore store = BucketlistClient.store();
-		int collected = 0;
+		Set<Integer> collected = (store != null && store.isOpen()) ? store.collectedVariants() : Set.of();
+
+		int cx = this.width / 2;
+
+		// Header.
 		int named = 0;
-		if (store != null && store.isOpen()) {
-			Set<Integer> variants = store.collectedVariants();
-			collected = variants.size();
-			for (int v : variants) {
-				if (NamedVarieties.isNamed(v)) {
-					named++;
+		for (int v : collected) {
+			if (NamedVarieties.isNamed(v)) {
+				named++;
+			}
+		}
+		context.drawCenteredTextWithShadow(this.textRenderer, this.title, cx, 8, 0xFFFFFF);
+		context.drawCenteredTextWithShadow(this.textRenderer,
+				Text.translatable("bucketlist.progress.global", collected.size(), FishCatalog.totalVariants()), cx, 20, 0x55FFFF);
+		context.drawCenteredTextWithShadow(this.textRenderer,
+				Text.translatable("bucketlist.progress.named", named, FishCatalog.namedTotal()), cx, 31, 0xFFD55F);
+
+		drawTabs(context, mouseX, mouseY);
+
+		hoveredVariant = -1;
+		int gridX = cx - 150;
+		int gridY = 80;
+		drawGrid(context, mouseX, mouseY, collected, gridX, gridY);
+		drawPreview(context, collected, gridX, gridY);
+	}
+
+	private void drawTabs(DrawContext context, int mouseX, int mouseY) {
+		int perRow = 6;
+		int rowW = perRow * (TAB_W + 2) - 2;
+		int startX = this.width / 2 - rowW / 2;
+		for (int i = 0; i < TropicalFishVariant.TYPES; i++) {
+			int col = i % perRow;
+			int row = i / perRow;
+			int x = startX + col * (TAB_W + 2);
+			int y = 44 + row * (TAB_H + 2);
+			tabX[i] = x;
+			tabY[i] = y;
+
+			boolean sel = i == selectedType;
+			boolean hover = mouseX >= x && mouseX < x + TAB_W && mouseY >= y && mouseY < y + TAB_H;
+			int bg = sel ? 0xFF4A4A4A : (hover ? 0xFF333333 : 0xFF222222);
+			context.fill(x, y, x + TAB_W, y + TAB_H, bg);
+			context.drawBorder(x, y, TAB_W, TAB_H, sel ? 0xFFFFFFFF : 0xFF000000);
+			context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(TropicalFishVariant.TYPE_NAMES[i]),
+					x + TAB_W / 2, y + 3, sel ? 0xFFFFFF : 0xC0C0C0);
+		}
+	}
+
+	private void drawGrid(DrawContext context, int mouseX, int mouseY, Set<Integer> collected, int gridX, int gridY) {
+		int size = selectedType / TropicalFishVariant.PATTERNS;
+		int pattern = selectedType % TropicalFishVariant.PATTERNS;
+
+		for (int base = 0; base < TropicalFishVariant.COLORS; base++) {
+			for (int pc = 0; pc < TropicalFishVariant.COLORS; pc++) {
+				int x = gridX + pc * CELL;
+				int y = gridY + base * CELL;
+				int variant = new TropicalFishVariant(size, pattern, base, pc).pack();
+				boolean got = collected.contains(variant);
+
+				context.fill(x, y, x + CELL, y + CELL, DYE_RGB[base]);
+				context.fill(x + 3, y + 3, x + CELL - 3, y + CELL - 3, DYE_RGB[pc]);
+				if (!got) {
+					context.fill(x, y, x + CELL, y + CELL, 0xC8101010); // dim uncollected
+				}
+
+				boolean hover = mouseX >= x && mouseX < x + CELL && mouseY >= y && mouseY < y + CELL;
+				if (hover) {
+					hoveredVariant = variant;
+					context.drawBorder(x, y, CELL, CELL, 0xFFFFFFFF);
 				}
 			}
 		}
+	}
 
-		int cx = this.width / 2;
-		context.drawCenteredTextWithShadow(this.textRenderer, this.title, cx, 24, 0xFFFFFF);
+	private void drawPreview(DrawContext context, Set<Integer> collected, int gridX, int gridY) {
+		int size = selectedType / TropicalFishVariant.PATTERNS;
+		int pattern = selectedType % TropicalFishVariant.PATTERNS;
+		int shown = hoveredVariant >= 0 ? hoveredVariant : new TropicalFishVariant(size, pattern, 0, 0).pack();
+
+		int boxX = gridX + GRID + 16;
+		int boxY = gridY;
+		int boxW = 96;
+		int boxH = 120;
+		context.fill(boxX, boxY, boxX + boxW, boxY + boxH, 0xC0000000);
+		context.drawBorder(boxX, boxY, boxW, boxH, 0xFF555555);
+
+		ensurePreviewFish(shown);
+		if (previewFish != null) {
+			float midX = boxX + boxW / 2.0F;
+			float midY = boxY + boxH / 2.0F;
+			InventoryScreen.drawEntity(context, boxX + 8, boxY + 8, boxX + boxW - 8, boxY + boxH - 24, 42, 0.0F, midX, midY, previewFish);
+		}
+
+		// Hovered/selected variant label + status, centered under the grid.
+		TropicalFishVariant tv = TropicalFishVariant.unpack(shown);
+		boolean got = collected.contains(shown);
+		String name = tv.describe() + (NamedVarieties.isNamed(shown) ? "  (named)" : "");
+		int labelY = gridY + GRID + 8;
+		context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(name), this.width / 2, labelY, got ? 0x55FF55 : 0xC0C0C0);
 		context.drawCenteredTextWithShadow(this.textRenderer,
-				Text.translatable("bucketlist.progress.global", collected, TropicalFishVariant.TOTAL),
-				cx, 48, 0x55FFFF);
-		context.drawCenteredTextWithShadow(this.textRenderer,
-				Text.translatable("bucketlist.progress.named", named, NamedVarieties.total()),
-				cx, 62, 0xFFD55F);
-		context.drawCenteredTextWithShadow(this.textRenderer,
-				Text.literal("Tree view with fish icons lands next slice"),
-				cx, 90, 0x808080);
+				Text.literal(got ? "Collected" : "Not collected"), this.width / 2, labelY + 11, got ? 0x55FF55 : 0x808080);
+	}
+
+	private void ensurePreviewFish(int variant) {
+		if (this.client == null || this.client.world == null) {
+			previewFish = null;
+			return;
+		}
+		if (previewFish == null) {
+			previewFish = new TropicalFishEntity(EntityType.TROPICAL_FISH, this.client.world);
+		}
+		if (previewVariant != variant) {
+			NbtCompound nbt = new NbtCompound();
+			nbt.putInt(TropicalFishEntity.BUCKET_VARIANT_TAG_KEY, variant);
+			previewFish.copyDataFromNbt(nbt);
+			previewVariant = variant;
+		}
+	}
+
+	@Override
+	public boolean mouseClicked(double mouseX, double mouseY, int button) {
+		for (int i = 0; i < TropicalFishVariant.TYPES; i++) {
+			if (mouseX >= tabX[i] && mouseX < tabX[i] + TAB_W && mouseY >= tabY[i] && mouseY < tabY[i] + TAB_H) {
+				selectedType = i;
+				return true;
+			}
+		}
+		return super.mouseClicked(mouseX, mouseY, button);
 	}
 
 	@Override
