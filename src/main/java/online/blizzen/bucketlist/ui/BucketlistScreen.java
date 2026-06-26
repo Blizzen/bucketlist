@@ -37,11 +37,14 @@ public class BucketlistScreen extends Screen {
 	private int selectedType = -1; // -1 == Overview
 	private int hoveredVariant = -1;
 	private boolean missingOnly;
+	private boolean sideView;
 
 	private static final int TOGGLE_W = 92;
 	private static final int TOGGLE_H = 14;
 	private int toggleX;
 	private int toggleY;
+	private int sideToggleX;
+	private int sideToggleY;
 
 	// Reused preview entity; re-variant it only when the shown variant changes.
 	private TropicalFishEntity previewFish;
@@ -102,6 +105,15 @@ public class BucketlistScreen extends Screen {
 		context.drawBorder(toggleX, toggleY, TOGGLE_W, TOGGLE_H, missingOnly ? 0xFF55AAFF : 0xFF000000);
 		context.drawCenteredTextWithShadow(this.textRenderer,
 				Text.literal("Show: " + (missingOnly ? "Missing" : "All")), toggleX + TOGGLE_W / 2, toggleY + 3, 0xFFFFFF);
+
+		// "Side: On/Off" toggle (below Show): lock fish to a straight broadside pose.
+		sideToggleX = this.width - TOGGLE_W - 6;
+		sideToggleY = toggleY + TOGGLE_H + 4;
+		boolean sideHover = mouseX >= sideToggleX && mouseX < sideToggleX + TOGGLE_W && mouseY >= sideToggleY && mouseY < sideToggleY + TOGGLE_H;
+		context.fill(sideToggleX, sideToggleY, sideToggleX + TOGGLE_W, sideToggleY + TOGGLE_H, sideHover ? 0xFF333333 : 0xFF222222);
+		context.drawBorder(sideToggleX, sideToggleY, TOGGLE_W, TOGGLE_H, sideView ? 0xFF55AAFF : 0xFF000000);
+		context.drawCenteredTextWithShadow(this.textRenderer,
+				Text.literal("Side: " + (sideView ? "On" : "Off")), sideToggleX + TOGGLE_W / 2, sideToggleY + 3, 0xFFFFFF);
 
 		// "Overview" button (top-left); selectedType < 0 == overview.
 		overviewBtnX = 6;
@@ -169,9 +181,13 @@ public class BucketlistScreen extends Screen {
 			int pattern = i % TropicalFishVariant.PATTERNS;
 			ensurePreviewFish(new TropicalFishVariant(size, pattern, REP_BASE[i], REP_PATTERN[i]).pack());
 			if (previewFish != null) {
+				int fx1 = x + 8;
 				int fy1 = y + 27;
+				int fx2 = x + OV_CELL_W - 8;
 				int fy2 = y + OV_CELL_H - 9;
-				InventoryScreen.drawEntity(context, x + 8, fy1, x + OV_CELL_W - 8, fy2, 70, 0.0F, mouseX, mouseY, previewFish);
+				float fmx = sideView ? (fx1 + fx2) / 2.0F : mouseX;
+				float fmy = sideView ? (fy1 + fy2) / 2.0F : mouseY;
+				InventoryScreen.drawEntity(context, fx1, fy1, fx2, fy2, 70, 0.0F, fmx, fmy, previewFish);
 			}
 
 			int barX = x + 6;
@@ -263,7 +279,13 @@ public class BucketlistScreen extends Screen {
 
 		ensurePreviewFish(shown);
 		if (previewFish != null) {
-			InventoryScreen.drawEntity(context, boxX + 6, boxY + 6, boxX + boxW - 6, boxY + boxH - 22, 80, 0.0F, mouseX, mouseY, previewFish);
+			int fx1 = boxX + 6;
+			int fy1 = boxY + 6;
+			int fx2 = boxX + boxW - 6;
+			int fy2 = boxY + boxH - 22;
+			float fmx = sideView ? (fx1 + fx2) / 2.0F : mouseX;
+			float fmy = sideView ? (fy1 + fy2) / 2.0F : mouseY;
+			InventoryScreen.drawEntity(context, fx1, fy1, fx2, fy2, 80, 0.0F, fmx, fmy, previewFish);
 		}
 
 		// Hovered/selected variant label + status, centered under the grid.
@@ -305,6 +327,10 @@ public class BucketlistScreen extends Screen {
 	public boolean mouseClicked(double mouseX, double mouseY, int button) {
 		if (mouseX >= toggleX && mouseX < toggleX + TOGGLE_W && mouseY >= toggleY && mouseY < toggleY + TOGGLE_H) {
 			missingOnly = !missingOnly;
+			return true;
+		}
+		if (mouseX >= sideToggleX && mouseX < sideToggleX + TOGGLE_W && mouseY >= sideToggleY && mouseY < sideToggleY + TOGGLE_H) {
+			sideView = !sideView;
 			return true;
 		}
 		if (mouseX >= overviewBtnX && mouseX < overviewBtnX + OV_BTN_W && mouseY >= overviewBtnY && mouseY < overviewBtnY + OV_BTN_H) {
