@@ -134,7 +134,7 @@ public class BucketlistScreen extends Screen {
 
 		hoveredVariant = -1;
 		drawGrid(context, mouseX, mouseY, collected, gridX, gridY);
-		drawPreview(context, collected, gridX, gridY);
+		drawPreview(context, mouseX, mouseY, collected, gridX, gridY);
 	}
 
 	private void drawOverview(DrawContext context, int mouseX, int mouseY, int[] perType) {
@@ -171,7 +171,7 @@ public class BucketlistScreen extends Screen {
 			if (previewFish != null) {
 				int fy1 = y + 27;
 				int fy2 = y + OV_CELL_H - 9;
-				InventoryScreen.drawEntity(context, x + 8, fy1, x + OV_CELL_W - 8, fy2, 70, 0.0F, midX, (fy1 + fy2) / 2.0F, previewFish);
+				InventoryScreen.drawEntity(context, x + 8, fy1, x + OV_CELL_W - 8, fy2, 70, 0.0F, mouseX, mouseY, previewFish);
 			}
 
 			int barX = x + 6;
@@ -249,7 +249,7 @@ public class BucketlistScreen extends Screen {
 		}
 	}
 
-	private void drawPreview(DrawContext context, Set<Integer> collected, int gridX, int gridY) {
+	private void drawPreview(DrawContext context, int mouseX, int mouseY, Set<Integer> collected, int gridX, int gridY) {
 		int size = selectedType / TropicalFishVariant.PATTERNS;
 		int pattern = selectedType % TropicalFishVariant.PATTERNS;
 		int shown = hoveredVariant >= 0 ? hoveredVariant : new TropicalFishVariant(size, pattern, 0, 0).pack();
@@ -263,9 +263,7 @@ public class BucketlistScreen extends Screen {
 
 		ensurePreviewFish(shown);
 		if (previewFish != null) {
-			float midX = boxX + boxW / 2.0F;
-			float midY = boxY + boxH / 2.0F;
-			InventoryScreen.drawEntity(context, boxX + 6, boxY + 6, boxX + boxW - 6, boxY + boxH - 22, 80, 0.0F, midX, midY, previewFish);
+			InventoryScreen.drawEntity(context, boxX + 6, boxY + 6, boxX + boxW - 6, boxY + boxH - 22, 80, 0.0F, mouseX, mouseY, previewFish);
 		}
 
 		// Hovered/selected variant label + status, centered under the grid.
@@ -299,6 +297,8 @@ public class BucketlistScreen extends Screen {
 			previewFish.copyDataFromNbt(nbt);
 			previewVariant = variant;
 		}
+		// Drive the swim animation from world time (the entity isn't ticked in the GUI).
+		previewFish.age = (int) this.client.world.getTime();
 	}
 
 	@Override
