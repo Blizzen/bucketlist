@@ -13,7 +13,9 @@ import online.blizzen.bucketlist.detect.CollectionScanner;
 import online.blizzen.bucketlist.detect.Diagnostics;
 import online.blizzen.bucketlist.detect.ScanResult;
 import online.blizzen.bucketlist.store.CollectionStore;
+import online.blizzen.bucketlist.toast.ToastQueue;
 import online.blizzen.bucketlist.ui.BucketlistScreen;
+import online.blizzen.bucketlist.variant.NamedVarieties;
 import org.lwjgl.glfw.GLFW;
 
 import java.nio.file.Path;
@@ -90,7 +92,15 @@ public class BucketlistClient implements ClientModInitializer {
 		if (!added.isEmpty()) {
 			store.saveIfDirty();
 			Diagnostics.writeScanEvent(configDir, now, currentServerKey, scan, added, store.count());
-			// TODO(next slice): feed the ToastQueue for tiered/coalesced toasts.
+
+			int namedCount = 0;
+			for (int v : store.collectedVariants()) {
+				if (NamedVarieties.isNamed(v)) {
+					namedCount++;
+				}
+			}
+			ToastQueue.onCollected(client, added, namedCount, store.count());
+
 			Bucketlist.LOGGER.info("Bucketlist: +{} new variant(s); scan found {} distinct from {} bucket stack(s); {} total",
 					added.size(), scan.variants().size(), scan.sourceStacks(), store.count());
 		}

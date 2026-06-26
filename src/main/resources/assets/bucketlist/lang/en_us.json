@@ -6,10 +6,11 @@
 	"bucketlist.progress.global": "%s / %s variants",
 	"bucketlist.progress.named": "%s / %s named",
 
-	"bucketlist.toast.new_variant": "New variant collected!",
+	"bucketlist.toast.new_variant": "New tropical fish collected!",
 	"bucketlist.toast.bulk": "+%s new variants",
 	"bucketlist.toast.row_complete": "Row complete: %s",
 	"bucketlist.toast.type_complete": "Type complete: %s",
 	"bucketlist.toast.named": "Named variety: %s",
+	"bucketlist.toast.named_complete": "All named varieties collected!",
 	"bucketlist.toast.challenge": "All variants collected!"
 }

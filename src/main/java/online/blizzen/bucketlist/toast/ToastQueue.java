@@ -1,19 +1,53 @@
 package online.blizzen.bucketlist.toast;
 
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.toast.SystemToast;
+import net.minecraft.text.Text;
+import online.blizzen.bucketlist.variant.NamedVarieties;
+import online.blizzen.bucketlist.variant.TropicalFishVariant;
+
+import java.util.List;
+
 /**
- * Tiered + coalesced toast feedback.
+ * Tiered + coalesced toast feedback. One toast per collection event, chosen by salience:
  *
  * <ul>
- *   <li>A single new variant during normal play -> one "new variant" toast.</li>
- *   <li>A bulk stash scan landing many at once -> one coalesced "+N new variants" toast,
- *       plus tier-completion toasts for any row (16/16), type (256/256), named variety,
- *       or the global challenge that completed.</li>
+ *   <li>completing the full {@value TropicalFishVariant#TOTAL} -> challenge toast</li>
+ *   <li>completing all 22 named -> named-complete toast</li>
+ *   <li>a single new variant -> a "new variant" toast naming the fish</li>
+ *   <li>a bulk discovery (e.g. opening a stash) -> one coalesced "+N" toast</li>
  * </ul>
  *
- * This prevents the 200-toast firehose the deep-scan would otherwise cause.
+ * Uses vanilla {@link SystemToast} (no custom rendering). A later slice can swap in a
+ * polished advancement-style toast once it can be verified visually.
  */
 public final class ToastQueue {
 
-	// TODO(v0.1): accept newly-collected variants for a frame; decide single vs coalesced
-	// vs tier toasts; submit to MinecraftClient.getInstance().getToastManager().
+	private ToastQueue() {}
+
+	public static void onCollected(MinecraftClient client, List<Integer> added, int afterNamed, int afterTotal) {
+		if (added.isEmpty()) {
+			return;
+		}
+
+		int addedNamed = (int) added.stream().filter(NamedVarieties::isNamed).count();
+
+		Text title;
+		Text description;
+		if (afterTotal >= TropicalFishVariant.TOTAL) {
+			title = Text.translatable("bucketlist.toast.challenge");
+			description = Text.literal(afterTotal + " / " + TropicalFishVariant.TOTAL);
+		} else if (afterNamed >= NamedVarieties.total() && addedNamed > 0) {
+			title = Text.translatable("bucketlist.toast.named_complete");
+			description = Text.literal(afterNamed + " / " + NamedVarieties.total() + " named");
+		} else if (added.size() == 1) {
+			title = Text.translatable("bucketlist.toast.new_variant");
+			description = Text.literal(TropicalFishVariant.unpack(added.get(0)).describe());
+		} else {
+			title = Text.translatable("bucketlist.toast.bulk", added.size());
+			description = Text.literal(afterTotal + " / " + TropicalFishVariant.TOTAL);
+		}
+
+		SystemToast.show(client.getToastManager(), SystemToast.Type.PERIODIC_NOTIFICATION, title, description);
+	}
 }
