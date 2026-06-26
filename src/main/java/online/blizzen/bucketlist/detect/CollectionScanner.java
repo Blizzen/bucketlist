@@ -1,6 +1,9 @@
 package online.blizzen.bucketlist.detect;
 
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
+import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.ContainerComponent;
@@ -10,7 +13,6 @@ import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
-import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 
 import java.util.HashSet;
@@ -20,9 +22,10 @@ import java.util.Set;
  * Deep-scan detector. Gathers the tropical-fish variants the player currently has access to:
  *
  * <ul>
- *   <li>player inventory (main + offhand)</li>
- *   <li>the contents of any open container screen (ender chest, stash chests, ...) via the
- *       current {@link ScreenHandler}'s slots</li>
+ *   <li>player inventory (main + offhand) — their real possessions</li>
+ *   <li>the contents of a genuinely open container screen (ender chest, stash chests, ...) —
+ *       but never the <b>creative inventory palette</b>, which shows items the player does
+ *       not actually own</li>
  *   <li>the {@code container} component of any shulker-box item found in the above
  *       (readable without opening the box)</li>
  * </ul>
@@ -36,29 +39,32 @@ public final class CollectionScanner {
 		}
 
 		Set<Integer> variants = new HashSet<>();
+		int[] bucketStacks = {0};
 
+		// Real possessions.
 		PlayerInventory inv = player.getInventory();
 		for (ItemStack stack : inv.main) {
-			collect(stack, variants, true);
+			collect(stack, variants, bucketStacks, true);
 		}
 		for (ItemStack stack : inv.offHand) {
-			collect(stack, variants, true);
+			collect(stack, variants, bucketStacks, true);
 		}
 
-		// The current handler covers the player inventory and any open container.
-		ScreenHandler handler = player.currentScreenHandler;
-		if (handler != null) {
-			for (Slot slot : handler.slots) {
-				collect(slot.getStack(), variants, true);
+		// A genuinely open container (chest / ender chest / barrel / ...). Excludes the
+		// creative inventory, whose slots are a palette of items the player does not own.
+		Screen screen = client.currentScreen;
+		if (screen instanceof HandledScreen<?> handledScreen && !(screen instanceof CreativeInventoryScreen)) {
+			for (Slot slot : handledScreen.getScreenHandler().slots) {
+				collect(slot.getStack(), variants, bucketStacks, true);
 			}
 		}
 
-		return new ScanResult(variants);
+		return new ScanResult(variants, bucketStacks[0]);
 	}
 
 	/** Records a variant if {@code stack} is a tropical-fish bucket; recurses one level into
 	 *  shulker-box container contents when {@code recurse} is true. */
-	private void collect(ItemStack stack, Set<Integer> out, boolean recurse) {
+	private void collect(ItemStack stack, Set<Integer> out, int[] bucketStacks, boolean recurse) {
 		if (stack == null || stack.isEmpty()) {
 			return;
 		}
@@ -69,6 +75,7 @@ public final class CollectionScanner {
 				NbtCompound nbt = data.copyNbt();
 				if (nbt.contains(TropicalFishEntity.BUCKET_VARIANT_TAG_KEY)) {
 					out.add(nbt.getInt(TropicalFishEntity.BUCKET_VARIANT_TAG_KEY));
+					bucketStacks[0]++;
 				}
 			}
 		}
@@ -76,7 +83,7 @@ public final class CollectionScanner {
 		if (recurse) {
 			ContainerComponent container = stack.get(DataComponentTypes.CONTAINER);
 			if (container != null) {
-				container.streamNonEmpty().forEach(inner -> collect(inner, out, false));
+				container.streamNonEmpty().forEach(inner -> collect(inner, out, bucketStacks, false));
 			}
 		}
 	}

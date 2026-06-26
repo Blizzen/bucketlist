@@ -10,10 +10,15 @@ import net.minecraft.client.network.ServerInfo;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import online.blizzen.bucketlist.detect.CollectionScanner;
+import online.blizzen.bucketlist.detect.Diagnostics;
 import online.blizzen.bucketlist.detect.ScanResult;
 import online.blizzen.bucketlist.store.CollectionStore;
 import online.blizzen.bucketlist.ui.BucketlistScreen;
 import org.lwjgl.glfw.GLFW;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Client entrypoint. Bucketlist is a client-side advancement engine: it watches what you
@@ -31,6 +36,8 @@ public class BucketlistClient implements ClientModInitializer {
 	private final CollectionScanner scanner = new CollectionScanner();
 	private KeyBinding openKey;
 	private int tickCounter;
+	private Path configDir;
+	private String currentServerKey = "unknown";
 
 	/** The active per-server collection store (may be closed when not in a world). */
 	public static CollectionStore store() {
@@ -41,7 +48,8 @@ public class BucketlistClient implements ClientModInitializer {
 	public void onInitializeClient() {
 		Bucketlist.LOGGER.info("Bucketlist starting (client-side advancement engine)");
 
-		store = new CollectionStore(FabricLoader.getInstance().getConfigDir());
+		configDir = FabricLoader.getInstance().getConfigDir();
+		store = new CollectionStore(configDir);
 
 		openKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
 				"key.bucketlist.open",
@@ -50,7 +58,10 @@ public class BucketlistClient implements ClientModInitializer {
 				"key.categories.bucketlist"
 		));
 
-		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> store.open(serverKey(client)));
+		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+			currentServerKey = serverKey(client);
+			store.open(currentServerKey);
+		});
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> store.close());
 
 		ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
@@ -70,16 +81,18 @@ public class BucketlistClient implements ClientModInitializer {
 
 		ScanResult scan = scanner.scan(client);
 		long now = System.currentTimeMillis();
-		int added = 0;
+		List<Integer> added = new ArrayList<>();
 		for (int variant : scan.variants()) {
 			if (store.markCollected(variant, now)) {
-				added++;
+				added.add(variant);
 			}
 		}
-		if (added > 0) {
+		if (!added.isEmpty()) {
 			store.saveIfDirty();
+			Diagnostics.writeScanEvent(configDir, now, currentServerKey, scan, added, store.count());
 			// TODO(next slice): feed the ToastQueue for tiered/coalesced toasts.
-			Bucketlist.LOGGER.info("Bucketlist: +{} new variant(s) ({} total this server)", added, store.count());
+			Bucketlist.LOGGER.info("Bucketlist: +{} new variant(s); scan found {} distinct from {} bucket stack(s); {} total",
+					added.size(), scan.variants().size(), scan.sourceStacks(), store.count());
 		}
 	}
 
