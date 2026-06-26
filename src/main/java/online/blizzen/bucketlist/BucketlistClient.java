@@ -41,6 +41,12 @@ public class BucketlistClient implements ClientModInitializer {
 	private Path configDir;
 	private String currentServerKey = "unknown";
 
+	// Toast debounce: accumulate newly-collected variants and emit ONE coalesced toast once
+	// collection goes quiet for a scan (or the burst gets large), instead of one per scan.
+	private final List<Integer> pendingToast = new ArrayList<>();
+	private int idleScans;
+	private static final int TOAST_FLUSH_SIZE = 64;
+
 	/** The active per-server collection store (may be closed when not in a world). */
 	public static CollectionStore store() {
 		return store;
@@ -92,18 +98,33 @@ public class BucketlistClient implements ClientModInitializer {
 		if (!added.isEmpty()) {
 			store.saveIfDirty();
 			Diagnostics.writeScanEvent(configDir, now, currentServerKey, scan, added, store.count());
-
-			int namedCount = 0;
-			for (int v : store.collectedVariants()) {
-				if (NamedVarieties.isNamed(v)) {
-					namedCount++;
-				}
-			}
-			ToastQueue.onCollected(client, added, namedCount, store.count());
-
 			Bucketlist.LOGGER.info("Bucketlist: +{} new variant(s); scan found {} distinct from {} bucket stack(s); {} total",
 					added.size(), scan.variants().size(), scan.sourceStacks(), store.count());
+
+			pendingToast.addAll(added);
+			idleScans = 0;
+			if (pendingToast.size() >= TOAST_FLUSH_SIZE) {
+				flushToast(client);
+			}
+		} else if (!pendingToast.isEmpty() && ++idleScans >= 1) {
+			// One quiet scan after a burst -> emit a single coalesced toast.
+			flushToast(client);
 		}
+	}
+
+	private void flushToast(MinecraftClient client) {
+		if (pendingToast.isEmpty()) {
+			return;
+		}
+		int namedCount = 0;
+		for (int v : store.collectedVariants()) {
+			if (NamedVarieties.isNamed(v)) {
+				namedCount++;
+			}
+		}
+		ToastQueue.onCollected(client, List.copyOf(pendingToast), namedCount, store.count());
+		pendingToast.clear();
+		idleScans = 0;
 	}
 
 	/** Multiplayer: server address. Singleplayer: world name. */
