@@ -284,7 +284,14 @@ public class BucketlistScreen extends Screen {
 			return;
 		}
 		if (previewFish == null) {
-			previewFish = new TropicalFishEntity(EntityType.TROPICAL_FISH, this.client.world);
+			// Report as in-water so the renderer skips its "flopping on land" 90deg Z-rotation
+			// (TropicalFishEntityRenderer.setupTransforms) and shows the upright swimming pose.
+			previewFish = new TropicalFishEntity(EntityType.TROPICAL_FISH, this.client.world) {
+				@Override
+				public boolean isTouchingWater() {
+					return true;
+				}
+			};
 		}
 		if (previewVariant != variant) {
 			NbtCompound nbt = new NbtCompound();
