@@ -36,6 +36,12 @@ public class BucketlistScreen extends Screen {
 
 	private int selectedType;
 	private int hoveredVariant = -1;
+	private boolean missingOnly;
+
+	private static final int TOGGLE_W = 92;
+	private static final int TOGGLE_H = 14;
+	private int toggleX;
+	private int toggleY;
 
 	// Reused preview entity; re-variant it only when the shown variant changes.
 	private TropicalFishEntity previewFish;
@@ -72,6 +78,15 @@ public class BucketlistScreen extends Screen {
 				Text.translatable("bucketlist.progress.global", collected.size(), FishCatalog.totalVariants()), cx, 20, 0x55FFFF);
 		context.drawCenteredTextWithShadow(this.textRenderer,
 				Text.translatable("bucketlist.progress.named", named, FishCatalog.namedTotal()), cx, 31, 0xFFD55F);
+
+		// "Show: All / Missing" toggle (top-right).
+		toggleX = this.width - TOGGLE_W - 6;
+		toggleY = 6;
+		boolean toggleHover = mouseX >= toggleX && mouseX < toggleX + TOGGLE_W && mouseY >= toggleY && mouseY < toggleY + TOGGLE_H;
+		context.fill(toggleX, toggleY, toggleX + TOGGLE_W, toggleY + TOGGLE_H, toggleHover ? 0xFF333333 : 0xFF222222);
+		context.drawBorder(toggleX, toggleY, TOGGLE_W, TOGGLE_H, missingOnly ? 0xFF55AAFF : 0xFF000000);
+		context.drawCenteredTextWithShadow(this.textRenderer,
+				Text.literal("Show: " + (missingOnly ? "Missing" : "All")), toggleX + TOGGLE_W / 2, toggleY + 3, 0xFFFFFF);
 
 		int[] perType = new int[TropicalFishVariant.TYPES];
 		for (int v : collected) {
@@ -137,10 +152,15 @@ public class BucketlistScreen extends Screen {
 				int variant = new TropicalFishVariant(size, pattern, base, pc).pack();
 				boolean got = collected.contains(variant);
 
-				context.fill(x, y, x + CELL, y + CELL, DYE_RGB[base]);
-				context.fill(x + 3, y + 3, x + CELL - 3, y + CELL - 3, DYE_RGB[pc]);
-				if (!got) {
-					context.fill(x, y, x + CELL, y + CELL, 0xC8101010); // dim uncollected
+				if (missingOnly && got) {
+					// In the missing-only view, collected variants become empty slots.
+					context.fill(x, y, x + CELL, y + CELL, 0xFF181818);
+				} else {
+					context.fill(x, y, x + CELL, y + CELL, DYE_RGB[base]);
+					context.fill(x + 3, y + 3, x + CELL - 3, y + CELL - 3, DYE_RGB[pc]);
+					if (!missingOnly && !got) {
+						context.fill(x, y, x + CELL, y + CELL, 0xC8101010); // dim uncollected in the full view
+					}
 				}
 
 				boolean hover = mouseX >= x && mouseX < x + CELL && mouseY >= y && mouseY < y + CELL;
@@ -199,6 +219,10 @@ public class BucketlistScreen extends Screen {
 
 	@Override
 	public boolean mouseClicked(double mouseX, double mouseY, int button) {
+		if (mouseX >= toggleX && mouseX < toggleX + TOGGLE_W && mouseY >= toggleY && mouseY < toggleY + TOGGLE_H) {
+			missingOnly = !missingOnly;
+			return true;
+		}
 		for (int i = 0; i < TropicalFishVariant.TYPES; i++) {
 			if (mouseX >= tabX[i] && mouseX < tabX[i] + TAB_W && mouseY >= tabY[i] && mouseY < tabY[i] + TAB_H) {
 				selectedType = i;
