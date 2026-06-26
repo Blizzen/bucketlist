@@ -259,6 +259,9 @@ public class BucketlistScreen extends Screen {
 					if (!missingOnly && !got) {
 						context.fill(x, y, x + CELL, y + CELL, 0xC8101010); // dim uncollected in the full view
 					}
+					if (NamedVarieties.isNamed(variant)) {
+						context.fill(x + CELL - 4, y + 1, x + CELL - 1, y + 4, 0xFFFFD700); // gold corner = named variety
+					}
 				}
 
 				boolean hover = mouseX >= x && mouseX < x + CELL && mouseY >= y && mouseY < y + CELL;
