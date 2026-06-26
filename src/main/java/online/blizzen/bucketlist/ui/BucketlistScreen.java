@@ -57,7 +57,12 @@ public class BucketlistScreen extends Screen {
 	private final int[] ovCellX = new int[TropicalFishVariant.TYPES];
 	private final int[] ovCellY = new int[TropicalFishVariant.TYPES];
 	private static final int OV_CELL_W = 86;
-	private static final int OV_CELL_H = 66;
+	private static final int OV_CELL_H = 78;
+
+	// Distinctive representative (baseColor, patternColor) per type for the overview icons —
+	// each type's iconic named-variety colours, indexed by type (Kob..Clayfish).
+	private static final int[] REP_BASE = {1, 11, 7, 9, 5, 6, 0, 1, 0, 10, 14, 0};
+	private static final int[] REP_PATTERN = {0, 7, 14, 6, 3, 3, 4, 7, 7, 4, 0, 14};
 	private static final int OV_BTN_W = 78;
 	private static final int OV_BTN_H = 14;
 	private int overviewBtnX;
@@ -149,28 +154,33 @@ public class BucketlistScreen extends Screen {
 
 			boolean hover = mouseX >= x && mouseX < x + OV_CELL_W && mouseY >= y && mouseY < y + OV_CELL_H;
 			boolean complete = perType[i] >= TYPE_MAX;
+			int midX = x + OV_CELL_W / 2;
 			context.fill(x, y, x + OV_CELL_W, y + OV_CELL_H, hover ? 0xFF2A2A2A : 0xFF1A1A1A);
 			context.drawBorder(x, y, OV_CELL_W, OV_CELL_H, complete ? 0xFF55FF55 : (hover ? 0xFFFFFFFF : 0xFF000000));
 
-			// Representative fish (red body / white pattern) shows the type's shape+pattern.
+			// Name + count, centered at the top.
+			context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(TropicalFishVariant.TYPE_NAMES[i]),
+					midX, y + 4, complete ? 0x55FF55 : 0xFFFFFF);
+			context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(perType[i] + " / " + TYPE_MAX),
+					midX, y + 15, 0xC0C0C0);
+
+			// Big centered representative fish (the type's iconic colours).
 			int size = i / TropicalFishVariant.PATTERNS;
 			int pattern = i % TropicalFishVariant.PATTERNS;
-			ensurePreviewFish(new TropicalFishVariant(size, pattern, 14, 0).pack());
+			ensurePreviewFish(new TropicalFishVariant(size, pattern, REP_BASE[i], REP_PATTERN[i]).pack());
 			if (previewFish != null) {
-				InventoryScreen.drawEntity(context, x + 4, y + 4, x + 44, y + OV_CELL_H - 4, 30, 0.0F, x + 24, y + OV_CELL_H / 2.0F, previewFish);
+				int fy1 = y + 27;
+				int fy2 = y + OV_CELL_H - 9;
+				InventoryScreen.drawEntity(context, x + 8, fy1, x + OV_CELL_W - 8, fy2, 70, 0.0F, midX, (fy1 + fy2) / 2.0F, previewFish);
 			}
 
-			context.drawTextWithShadow(this.textRenderer, Text.literal(TropicalFishVariant.TYPE_NAMES[i]),
-					x + 48, y + 8, complete ? 0x55FF55 : 0xFFFFFF);
-			context.drawTextWithShadow(this.textRenderer, Text.literal(perType[i] + " / " + TYPE_MAX), x + 48, y + 20, 0xC0C0C0);
-
-			int barX = x + 48;
-			int barY = y + OV_CELL_H - 12;
-			int barW = OV_CELL_W - 52;
-			context.fill(barX, barY, barX + barW, barY + 4, 0xFF101010);
+			int barX = x + 6;
+			int barY = y + OV_CELL_H - 6;
+			int barW = OV_CELL_W - 12;
+			context.fill(barX, barY, barX + barW, barY + 3, 0xFF101010);
 			int fill = Math.round(barW * (perType[i] / (float) TYPE_MAX));
 			if (fill > 0) {
-				context.fill(barX, barY, barX + fill, barY + 4, complete ? 0xFF55FF55 : 0xFF55AAFF);
+				context.fill(barX, barY, barX + fill, barY + 3, complete ? 0xFF55FF55 : 0xFF55AAFF);
 			}
 		}
 	}
@@ -255,7 +265,7 @@ public class BucketlistScreen extends Screen {
 		if (previewFish != null) {
 			float midX = boxX + boxW / 2.0F;
 			float midY = boxY + boxH / 2.0F;
-			InventoryScreen.drawEntity(context, boxX + 8, boxY + 8, boxX + boxW - 8, boxY + boxH - 24, 42, 0.0F, midX, midY, previewFish);
+			InventoryScreen.drawEntity(context, boxX + 6, boxY + 6, boxX + boxW - 6, boxY + boxH - 22, 80, 0.0F, midX, midY, previewFish);
 		}
 
 		// Hovered/selected variant label + status, centered under the grid.
