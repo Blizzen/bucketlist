@@ -3,7 +3,7 @@
 	"id": "bucketlist",
 	"version": "${version}",
 	"name": "Bucketlist",
-	"description": "A client-side advancement engine for Minecraft. Tracks your collection of all 3,072 tropical fish variants on any server — no server-side datapack required. Drop in your own advancement packs (built in any advancement editor) to track them client-side too.",
+	"description": "A standalone client-side mod that tracks your collection of all 3,072 tropical fish variants on any server — nothing installed server-side, not a datapack. It watches your own inventory and shows your progress in an advancement-style screen with its own toasts.",
 	"authors": [
 		"Blizzen"
 	],

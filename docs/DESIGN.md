@@ -1,8 +1,8 @@
 # Bucketlist — Design
 
-A client-side advancement engine for Fabric 1.21.4. Flagship content: collect all 3,072
-tropical fish variants on any server, with nothing installed server-side. This document is
-the spec the scaffold was built from; it records the decisions and the staged plan.
+A standalone client-side mod for Fabric 1.21.4 — **not a datapack**. It lets you collect all
+3,072 tropical fish variants on any server with nothing installed server-side. This document
+records the decisions and the staged plan.
 
 ## 1. The core constraint
 
@@ -24,10 +24,7 @@ advancements at all.
 | Persistence scope | **Per-server** (multiplayer: `host:port`; singleplayer: world folder), mirroring the datapack's per-world nature. First-collected timestamp stamped per variant. |
 | Completion | **Dual goal**: 22 named varieties **and** the full 3,072. Organized by the 12 types (2 shapes x 6 patterns), each a 16x16 base/pattern-color grid. |
 | UI fidelity | **Clone the vanilla advancement screen** (dirt bg, `task`/`goal`/`challenge` frames, connecting lines, tree walk, toasts), with **procedural live-fish icons** (no shipped textures). |
-| Genericity | **Generic engine**, fish as the flagship bundled pack. "Linked to an advancement editor" = it ingests standard advancement JSON. `inventory_changed` evaluator first. |
-| Pack format | Standard advancement JSON in **real datapack layout** (`data/<ns>/advancement/*.json`). Bundled in jar + (later) drop-in folder. **Additive** `gu:`-namespaced fields only, so files stay editor-loadable. |
-| Predicate eval | **(B) pragmatic evaluator + additive variant hint** (`gu:bucket_variant`). Evaluate the cleanly-expressible predicate fields; ride the awkward nested variant match on the hint. Grow as real packs demand. |
-| Flagship pack | **(A) build-time generator → real datapack-layout files** (single code path; the flagship is the loader's own test fixture). |
+| Content format | **Generated in code** (`FishCatalog`), no data files. *Revised 2026-06-26*: the original plan was a generic advancement-JSON engine (so packs could be authored in an advancement editor), but a datapack-shaped format on a *client* mod caused confusion and a real footgun (see §6), and the fish set is purely combinatorial so it needs no authoring. Bucketlist is a standalone client mod, not a datapack engine. Any "import an advancement-editor pack" feature, if ever wanted, becomes a clearly-separate optional extra the mod parses itself — never a server datapack. |
 | Inventory scope | **(B) deep scan** — player inventory **+** the `container` component of any held shulker box (no need to open it) **+** any open container screen. Stash-hunter friendly. |
 | Entry + feedback | **Configurable keybind** to open (bound in vanilla Controls; unbound by default) **+ tiered/coalesced toasts** (single new variant → one toast; bulk scan → one "+N" summary + row/type/named/challenge completion toasts). |
 | Settings | **Auto-generated** settings file with sane defaults (`config/bucketlist.json`); editable but never required. Plug-and-play: install jar → press keybind → works. The user never authors any file. |
@@ -38,61 +35,50 @@ advancements at all.
 ```
 online.blizzen.bucketlist
   Bucketlist            constants (MOD_ID, LOGGER)
-  BucketlistClient      ClientModInitializer: keybind + tick hook; bootstraps the engine
+  BucketlistClient      ClientModInitializer: keybind + tick hook; store lifecycle; scan→store→toast
   variant/
-    TropicalFishVariant pack/unpack the variant int; type indexing
-  pack/
-    AdvancementPack     a loaded namespace (nodes; tab roots)
-    PackLoader          datapack-layout JSON loader (bundled now; drop-in later)
-  engine/
-    AdvancementNode     decoded node (parent/title/frame/showToast/bucketVariant/children)
-  criteria/
-    CriterionEvaluator  pluggable per trigger id
-    InventoryChangedEvaluator  minecraft:inventory_changed (+ gu:bucket_variant)
+    TropicalFishVariant pack/unpack the variant int; type indexing; names; describe()
+    NamedVarieties      the 22 named varieties (from TropicalFishEntity.COMMON_VARIANTS)
+  fish/
+    FishCatalog         the 3072-variant collection, BUILT IN CODE (12 types × 16 × 16)
   detect/
     CollectionScanner   deep-scan → ScanResult (set of packed variant ints)
     ScanResult
+    Diagnostics         JSONL scan events for debugging
   store/
     CollectionStore     per-server JSON persistence
   toast/
-    ToastQueue          tiered + coalesced toast feedback
+    ToastQueue          tiered + coalesced toast feedback (vanilla SystemToast)
   ui/
-    BucketlistScreen    advancement-style screen with procedural fish icons
+    BucketlistScreen    advancement-style screen with procedural fish icons (renders FishCatalog)
 ```
 
 Data flow each tick / inventory change:
-`CollectionScanner.scan()` → `ScanResult` → evaluators mark nodes → `CollectionStore`
-records newly-collected variants → `ToastQueue` emits feedback → `BucketlistScreen` renders
-current state.
+`CollectionScanner.scan()` → `ScanResult` → `CollectionStore` records newly-collected
+variants → debounced `ToastQueue` emits feedback → `BucketlistScreen` renders `FishCatalog`
+against the store's collected set.
 
-### The bundled fish tree (mirrors AntoninHuaut/TropicalFish)
+### The fish collection (mirrors AntoninHuaut/TropicalFish), generated in code
 
-```
-global/root              (challenge)   Global overview tab
-  global/<type>          (goal)        12 per-type summaries (minecraft:impossible → engine-derived)
-<type>/root              (goal)        12 per-type tabs (root = a tab)
-  <type>/<base>          (goal)        16 base-color nodes
-    <type>/<base>/pattern_<pc>  (task) 16 leaves → 3072 total
-```
-Each tab = a root advancement (vanilla behaviour). Leaves carry the real
-`minecraft:inventory_changed` criterion plus `gu:bucket_variant`. Generated by
-`tools/gen/FishPackGenerator.java`.
+`FishCatalog` builds 12 types (2 sizes × 6 patterns), each a 16×16 base/pattern-color grid =
+3072 variants, flagging the 22 named ones. The screen presents a Global overview tab plus one
+tab per type; "collected" is read from the per-server store. No JSON, no datapack, no files.
 
 ## 4. MVP (v0.1) and what's deferred
 
-**v0.1 (the vertical slice):**
-1. Fabric 1.21.4 skeleton, modid `bucketlist`, GPLv3. ✅ scaffolded
-2. Build-time generator → bundled fish pack. ✅ generator done; sample committed (full run verified at 3,289 files)
-3. Generic loader: read datapack-layout advancement JSON (bundled).
-4. `inventory_changed` evaluator + `gu:bucket_variant` hint. ◑ interface + evaluator stub in place
-5. Deep-scan detector (player inv + held shulkers + open container).
-6. Per-server persistence JSON.
-7. Advancement-style screen (tree, frames, lines, procedural fish icons) via keybind. ◑ keybind + screen stub in place
-8. Tiered/coalesced toasts.
+**v0.1:**
+1. Fabric 1.21.4 skeleton, modid `bucketlist`, GPLv3. ✅
+2. `FishCatalog`: the 3072-variant collection generated in code. ✅
+3. Deep-scan detector (player inv + held shulkers + open container). ✅
+4. Per-server persistence JSON. ✅
+5. Tiered + debounced toasts. ✅
+6. Live collection counts in the screen. ✅ (interim)
+7. Advancement-style screen (tabs, tree, frames, lines, procedural fish icons) rendering
+   `FishCatalog` against the store. ◑ **next slice** — keybind + interim count screen in place.
 
-**Deferred (post-MVP):**
-- Drop-in user packs from the config folder (the public "advancement editor" linkage).
-- Criteria evaluators beyond `inventory_changed`.
+**Deferred / dropped:**
+- ~~Generic advancement-JSON engine + advancement-editor packs~~ — dropped from the core
+  (see §2 "Content format"); could return later as an optional, clearly-separate extra.
 - Entity-sighting "seen" tier; stricter "personally caught" sub-stat.
 - Modrinth/CurseForge distribution; multi-version / other loaders.
 
@@ -105,16 +91,17 @@ Each tab = a root advancement (vanilla behaviour). Leaves carry the real
 - **Overlay flush.** The screen draws entity icons over GUI content — needs the
   `context.draw()` + `entityVertexConsumers.draw()` flush BEFORE and AFTER each batch;
   z-test alone is unreliable across 1.21.4 GUI render layers.
-- **No required files.** The mod writes its own settings + per-server save data with
-  defaults; the only user-authored files are *optional* drop-in packs (v0.2).
-- **Bundled pack must NOT live at jar-root `data/`.** A Fabric mod's jar-root `data/`
-  directory is auto-loaded as a real datapack by the integrated/singleplayer server. If the
-  fish advancements live there, the server grants them for real — and because each leaf's
-  vanilla criterion is the loose "have any tropical fish bucket," picking up one bucket
-  grants *every* leaf at once, firing a storm of vanilla "Advancement Made!" toasts. The
-  bundled pack therefore lives at `bucketlist/packs/tropicalfish/` (a datapack-layout folder
-  outside `assets/` and `data/`) and is read only by `PackLoader`. (Regression found in
-  testing: 4 phantom advancement toasts from a 4-leaf sample pack.)
+- **No required files; no data files at all.** The mod writes only its own settings +
+  per-server save data (with defaults). It ships **no** advancement/datapack content — the
+  fish collection is `FishCatalog` in code.
+- **Never put advancement content at jar-root `data/`** (the reason the format went
+  code-only). A Fabric mod's jar-root `data/` directory is auto-loaded as a real datapack by
+  the integrated/singleplayer server. When the fish advancements briefly lived there, the
+  server granted them for real — and because each leaf's vanilla criterion was the loose
+  "have any tropical fish bucket," picking up one bucket granted *every* leaf at once, firing
+  a storm of vanilla "Advancement Made!" toasts (the v0.1 "5 toasts from one catch" bug).
+  Generating in code removes this entire failure class: there is nothing for any server to
+  load.
 
 ## 6. Verifications — CLOSED against decompiled 1.21.4 source
 
