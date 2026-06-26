@@ -107,6 +107,14 @@ Each tab = a root advancement (vanilla behaviour). Leaves carry the real
   z-test alone is unreliable across 1.21.4 GUI render layers.
 - **No required files.** The mod writes its own settings + per-server save data with
   defaults; the only user-authored files are *optional* drop-in packs (v0.2).
+- **Bundled pack must NOT live at jar-root `data/`.** A Fabric mod's jar-root `data/`
+  directory is auto-loaded as a real datapack by the integrated/singleplayer server. If the
+  fish advancements live there, the server grants them for real — and because each leaf's
+  vanilla criterion is the loose "have any tropical fish bucket," picking up one bucket
+  grants *every* leaf at once, firing a storm of vanilla "Advancement Made!" toasts. The
+  bundled pack therefore lives at `bucketlist/packs/tropicalfish/` (a datapack-layout folder
+  outside `assets/` and `data/`) and is read only by `PackLoader`. (Regression found in
+  testing: 4 phantom advancement toasts from a 4-leaf sample pack.)
 
 ## 6. Verifications — CLOSED against decompiled 1.21.4 source
 

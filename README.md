@@ -47,14 +47,18 @@ The built jar lands in `build/libs/`.
 
 ## Regenerating the flagship fish pack
 
-The bundled pack is generated from a single program (the source of truth):
+The bundled pack is generated from a single program (the source of truth). It lives at
+`src/main/resources/bucketlist/packs/tropicalfish/` — deliberately **not** under jar-root
+`data/`, because a Fabric mod's jar-root `data/` is auto-loaded as a real datapack by the
+(integrated) server, which would grant the advancements for real. Bucketlist is a client
+engine, so its packs are client-read resources.
 
 ```sh
 # tiny committed sample fixture (global tab + flopper tab, 2x2 colors)
-java tools/gen/FishPackGenerator.java src/main/resources --sample
+java tools/gen/FishPackGenerator.java src/main/resources/bucketlist/packs/tropicalfish --sample
 
 # the full 3,072-leaf tree
-java tools/gen/FishPackGenerator.java <some-resources-root>
+java tools/gen/FishPackGenerator.java src/main/resources/bucketlist/packs/tropicalfish
 ```
 
 ## License

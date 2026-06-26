@@ -5,7 +5,12 @@ package online.blizzen.bucketlist.pack;
  * ({@code data/<namespace>/advancement/<path>.json}).
  *
  * <ul>
- *   <li>v0.1: the bundled fish pack from the mod jar.</li>
+ *   <li>v0.1: the bundled fish pack from the mod jar, at
+ *       {@code bucketlist/packs/tropicalfish/} (a datapack-layout folder). It is
+ *       deliberately NOT at jar-root {@code data/}: a Fabric mod's jar-root {@code data/}
+ *       is auto-loaded as a real datapack by the (integrated) server, which would grant
+ *       these advancements for real and fire vanilla "Advancement Made!" toasts. Bucketlist
+ *       is a client engine, so its packs are read by this loader only.</li>
  *   <li>v0.2: drop-in packs from {@code config/bucketlist/packs/<name>/} — the
  *       "advancement editor" linkage: any datapack you author in an editor is tracked
  *       client-side with no server cooperation.</li>
